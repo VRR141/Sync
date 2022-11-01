@@ -11,16 +11,38 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException {
 
-        Runnable logic =() -> {
+        Runnable logic = () -> {
             String temp = generateRoute(letters, length);
             int result = (int) temp.chars().filter(ch -> ch == 'R').count();
             synchronized (sizeToFreq) {
-                if (sizeToFreq.containsKey(result)){
+                if (sizeToFreq.containsKey(result)) {
                     var value = sizeToFreq.get(result);
                     value++;
                     sizeToFreq.put((int) result, value);
                 } else {
                     sizeToFreq.put((int) result, 1);
+                }
+                sizeToFreq.notifyAll();
+            }
+        };
+
+        Runnable logicFreq = () -> {
+            int max = 0;
+            int maxKey = 0;
+            while (!Thread.interrupted()) {
+                synchronized (sizeToFreq) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    for (Integer i : sizeToFreq.keySet()) {
+                        if (sizeToFreq.get(i) > max) {
+                            max = sizeToFreq.get(i);
+                            maxKey = i;
+                        }
+                    }
+                    System.out.println("Current Leader: frq - " + maxKey + " amount - " + max);
                 }
             }
         };
@@ -31,13 +53,14 @@ public class Main {
             threads.add(new Thread(logic));
         }
 
+        var logicFreqThread = new Thread(logicFreq);
+        logicFreqThread.start();
+
         for (Thread thread: threads){
             thread.start();
         }
 
-        for (Thread thread: threads){
-            thread.join();
-        }
+        logicFreqThread.interrupt();
 
         System.out.println(printMap(sizeToFreq));
     }
